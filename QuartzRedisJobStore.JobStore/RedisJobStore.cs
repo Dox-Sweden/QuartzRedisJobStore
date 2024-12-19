@@ -25,14 +25,19 @@ namespace QuartzRedisJobStore.JobStore
         /// logger
         /// </summary>
         private readonly ILogger _logger;
+
         /// <summary>
         /// redis job store schema
         /// </summary>
         private RedisJobStoreSchema _storeSchema;
+
         /// <summary>
         /// redis db.
         /// </summary>
-        private IDatabase _db;
+        private IDatabase Db => _sentinelConnection.GetSentinelMasterConnection(RedisMasterConfiguration).GetDatabase();
+
+        private ConnectionMultiplexer _sentinelConnection;
+
         /// <summary>
         /// master/slave redis store.
         /// </summary>
@@ -80,10 +85,16 @@ namespace QuartzRedisJobStore.JobStore
         /// Tells the JobStore the pool size used to execute jobs.
         /// </summary>
         public int ThreadPoolSize { get; set; }
+
         /// <summary>
-        /// Redis configuration
+        /// Redis master configuration
         /// </summary>
-        public string RedisConfiguration { set; get; }
+        public ConfigurationOptions RedisMasterConfiguration { set; get; }
+
+        /// <summary>
+        /// Redis sentinel configuration
+        /// </summary>
+        public ConfigurationOptions RedisSentinelConfiguration { set; get; }
 
         /// <summary>
         /// gets / sets the delimiter for concatinate redis keys.
@@ -116,15 +127,26 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         public Task Initialize(ITypeLoadHelper loadHelper, ISchedulerSignaler signaler, CancellationToken cancellationToken = default)
         {
-            _storeSchema = new RedisJobStoreSchema(KeyPrefix ?? string.Empty, KeyDelimiter ?? ":");
-            _db = ConnectionMultiplexer.Connect(RedisConfiguration).GetDatabase();
+            if (RedisSentinelConfiguration == null)
+            {
+                throw new Exception($"{nameof(RedisSentinelConfiguration)} can not be null");
+            }
+            else if (RedisMasterConfiguration == null)
+            {
+                throw new Exception($"{nameof(RedisMasterConfiguration)} can not be null");
+            }
+
+            _sentinelConnection = ConnectionMultiplexer.SentinelConnect(RedisSentinelConfiguration);
+
+            _storeSchema = new RedisJobStoreSchema(KeyPrefix ?? string.Empty, KeyDelimiter ?? ":");            
             _storage = new RedisStorage(_storeSchema,
-                                        _db,
+                                        Db,
                                         signaler,
                                         InstanceId,
                                         TriggerLockTimeout ?? 300000,
                                         RedisLockTimeout ?? 5000,
                                         _logger);
+
             return Task.CompletedTask;
         }
 
@@ -166,7 +188,7 @@ namespace QuartzRedisJobStore.JobStore
         public Task Shutdown(CancellationToken cancellationToken = default)
         {
             _logger.LogInformation("scheduler has shutdown");
-            _db.Multiplexer.Dispose();
+            Db.Multiplexer.Dispose();
             return Task.CompletedTask;
         }
 
