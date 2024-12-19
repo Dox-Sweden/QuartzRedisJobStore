@@ -30,7 +30,8 @@ namespace QuartzRedisJobStore.JobStore
                             ISchedulerSignaler signaler,
                             string schedulerInstanceId,
                             int triggerLockTimeout,
-                            int redisLockTimeout) : base(redisJobStoreSchema, db, signaler, schedulerInstanceId, triggerLockTimeout, redisLockTimeout) { }
+                            int redisLockTimeout,
+                            ILogger logger) : base(redisJobStoreSchema, db, signaler, schedulerInstanceId, triggerLockTimeout, redisLockTimeout, logger) { }
 
         #endregion
 
@@ -265,7 +266,7 @@ namespace QuartzRedisJobStore.JobStore
         /// Pause the <see cref="T:Quartz.IJob"/> with the given key - by
         ///             pausing all of its current <see cref="T:Quartz.ITrigger"/>s.
         /// </summary>
-        public override IList<string> PauseJobs(GroupMatcher<JobKey> matcher)
+        public override IReadOnlyCollection<string> PauseJobs(GroupMatcher<JobKey> matcher)
         {
             var pausedJobGroups = new List<string>();
 
@@ -316,7 +317,7 @@ namespace QuartzRedisJobStore.JobStore
         ///             misfire instruction will be applied.
         /// </para>
         /// </summary>
-        public override ISet<string> ResumeJobs(GroupMatcher<JobKey> matcher)
+        public override IReadOnlyCollection<string> ResumeJobs(GroupMatcher<JobKey> matcher)
         {
             var resumedJobGroups = new List<string>();
 
@@ -491,7 +492,7 @@ namespace QuartzRedisJobStore.JobStore
         ///             <see cref="T:Quartz.ITrigger"/>'s misfire instruction will be applied.
         /// </para>
         /// </summary>
-        public override IList<string> ResumeTriggers(GroupMatcher<TriggerKey> matcher)
+        public override IReadOnlyCollection<string> ResumeTriggers(GroupMatcher<TriggerKey> matcher)
         {
             var resumedTriggerGroups = new List<string>();
 
@@ -584,7 +585,7 @@ namespace QuartzRedisJobStore.JobStore
         ///             state.  Preference is to return an empty list if none of the triggers
         ///             could be fired.
         /// </returns>
-        public override IList<TriggerFiredResult> TriggersFired(IList<IOperableTrigger> triggers)
+        public override IReadOnlyCollection<TriggerFiredResult> TriggersFired(IReadOnlyCollection<IOperableTrigger> triggers)
         {
             var result = new List<TriggerFiredResult>();
 
@@ -822,7 +823,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         /// <param name="matcher"/>
         /// <returns/>
-        public override ISet<JobKey> JobKeys(GroupMatcher<JobKey> matcher)
+        public override IReadOnlyCollection<JobKey> JobKeys(GroupMatcher<JobKey> matcher)
         {
             var jobKeys = new HashSet<JobKey>();
 
@@ -861,7 +862,7 @@ namespace QuartzRedisJobStore.JobStore
         ///             zero-length array (not <see langword="null"/>).
         /// </para>
         /// </summary>
-        public override ISet<TriggerKey> TriggerKeys(GroupMatcher<TriggerKey> matcher)
+        public override IReadOnlyCollection<TriggerKey> TriggerKeys(GroupMatcher<TriggerKey> matcher)
         {
             var triggerKeys = new HashSet<TriggerKey>();
 
@@ -951,7 +952,7 @@ namespace QuartzRedisJobStore.JobStore
         ///             pause on any new triggers that are added to the group while the group is
         ///             paused.
         /// </remarks>
-        public override IList<string> PauseTriggers(GroupMatcher<TriggerKey> matcher)
+        public override IReadOnlyCollection<string> PauseTriggers(GroupMatcher<TriggerKey> matcher)
         {
             var pausedTriggerGroups = new List<string>();
             if (matcher.CompareWithOperator.Equals(StringOperator.Equality))
