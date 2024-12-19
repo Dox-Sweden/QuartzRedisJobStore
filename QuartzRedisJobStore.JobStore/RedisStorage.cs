@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 using Quartz;
 using Quartz.Impl.Matchers;
 using Quartz.Spi;
@@ -24,7 +25,12 @@ namespace QuartzRedisJobStore.JobStore
         /// <param name="schedulerInstanceId">SchedulerInstanceId</param>
         /// <param name="triggerLockTimeout">triggerLockTimeout</param>
         /// <param name="redisLockTimeout">redisLockTimeout</param>
-        public RedisStorage(RedisJobStoreSchema redisJobStoreSchema, IDatabase db, ISchedulerSignaler signaler, string schedulerInstanceId, int triggerLockTimeout, int redisLockTimeout) : base(redisJobStoreSchema, db, signaler, schedulerInstanceId, triggerLockTimeout, redisLockTimeout) { }
+        public RedisStorage(RedisJobStoreSchema redisJobStoreSchema,
+                            IDatabase db,
+                            ISchedulerSignaler signaler,
+                            string schedulerInstanceId,
+                            int triggerLockTimeout,
+                            int redisLockTimeout) : base(redisJobStoreSchema, db, signaler, schedulerInstanceId, triggerLockTimeout, redisLockTimeout) { }
 
         #endregion
 
@@ -310,7 +316,7 @@ namespace QuartzRedisJobStore.JobStore
         ///             misfire instruction will be applied.
         /// </para>
         /// </summary>
-        public override global::Quartz.Collection.ISet<string> ResumeJobs(GroupMatcher<JobKey> matcher)
+        public override ISet<string> ResumeJobs(GroupMatcher<JobKey> matcher)
         {
             var resumedJobGroups = new List<string>();
 
@@ -346,7 +352,7 @@ namespace QuartzRedisJobStore.JobStore
                 }
             }
 
-            return new global::Quartz.Collection.HashSet<string>(resumedJobGroups);
+            return new HashSet<string>(resumedJobGroups);
         }
 
         /// <summary>
@@ -593,13 +599,13 @@ namespace QuartzRedisJobStore.JobStore
 
                 if (triggerExistResult == false)
                 {
-                    Logger.WarnFormat("Trigger {0} does not exist", triggerHashKey);
+                    Logger.LogWarning("Trigger {0} does not exist", triggerHashKey);
                     continue;
                 }
 
                 if (!triggerAcquiredResult.HasValue)
                 {
-                    Logger.WarnFormat("Trigger {0} was not acquired", triggerHashKey);
+                    Logger.LogWarning("Trigger {0} was not acquired", triggerHashKey);
                     continue;
                 }
 
@@ -696,7 +702,7 @@ namespace QuartzRedisJobStore.JobStore
 
             if (this.Db.KeyExists(jobHashKey))
             {
-                Logger.InfoFormat("{0} - Job has completed", jobHashKey);
+                Logger.LogInformation("{0} - Job has completed", jobHashKey);
 
                 if (jobDetail.PersistJobDataAfterExecution)
                 {
@@ -816,9 +822,9 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         /// <param name="matcher"/>
         /// <returns/>
-        public override global::Quartz.Collection.ISet<JobKey> JobKeys(GroupMatcher<JobKey> matcher)
+        public override ISet<JobKey> JobKeys(GroupMatcher<JobKey> matcher)
         {
-            var jobKeys = new global::Quartz.Collection.HashSet<JobKey>();
+            var jobKeys = new HashSet<JobKey>();
 
             if (matcher.CompareWithOperator.Equals(StringOperator.Equality))
             {
@@ -855,9 +861,9 @@ namespace QuartzRedisJobStore.JobStore
         ///             zero-length array (not <see langword="null"/>).
         /// </para>
         /// </summary>
-        public override global::Quartz.Collection.ISet<TriggerKey> TriggerKeys(GroupMatcher<TriggerKey> matcher)
+        public override ISet<TriggerKey> TriggerKeys(GroupMatcher<TriggerKey> matcher)
         {
-            var triggerKeys = new global::Quartz.Collection.HashSet<TriggerKey>();
+            var triggerKeys = new HashSet<TriggerKey>();
 
             if (matcher.CompareWithOperator.Equals(StringOperator.Equality))
             {

@@ -2,15 +2,16 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 using Quartz;
 using Quartz.Impl.Matchers;
 using Quartz.Impl.Triggers;
 using Quartz.Spi;
 using StackExchange.Redis;
-using log4net;
 using System.Threading;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Globalization;
 
 namespace QuartzRedisJobStore.JobStore
 {
@@ -22,7 +23,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <summary>
         /// Logger 
         /// </summary>
-        private readonly ILog _logger;
+        private readonly ILogger _logger;
 
         /// <summary>
         /// Utc datetime of Epoch.
@@ -72,7 +73,9 @@ namespace QuartzRedisJobStore.JobStore
         /// <summary>
         /// JsonSerializerSettings
         /// </summary>
-        private readonly JsonSerializerSettings _serializerSettings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All, DateTimeZoneHandling = DateTimeZoneHandling.Utc, NullValueHandling = NullValueHandling.Ignore, ContractResolver = new CamelCasePropertyNamesContractResolver() };
+        private readonly JsonSerializerOptions _serializerSettings = new JsonSerializerOptions { 
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+        };
 
         /// <summary>
         /// constructor
@@ -83,15 +86,22 @@ namespace QuartzRedisJobStore.JobStore
         /// <param name="schedulerInstanceId">schedulerInstanceId</param>
         /// <param name="triggerLockTimeout">Trigger lock timeout(number in miliseconds) used in releasing the orphan triggers.</param>
         /// <param name="redisLockTimeout">Redis Lock timeout (number in miliseconds)</param>
-        protected BaseJobStorage(RedisJobStoreSchema redisJobStoreSchema, IDatabase db, ISchedulerSignaler signaler, string schedulerInstanceId, int triggerLockTimeout, int redisLockTimeout)
+        protected BaseJobStorage(RedisJobStoreSchema redisJobStoreSchema,
+                                 IDatabase db,
+                                 ISchedulerSignaler signaler,
+                                 string schedulerInstanceId,
+                                 int triggerLockTimeout,
+                                 int redisLockTimeout,
+                                 ILogger<BaseJobStorage> logger)
         {
             RedisJobStoreSchema = redisJobStoreSchema;
             Db = db;
             SchedulerSignaler = signaler;
             SchedulerInstanceId = schedulerInstanceId;
-            _logger = LogManager.GetLogger(GetType());
             TriggerLockTimeout = triggerLockTimeout;
             RedisLockTimeout = redisLockTimeout;
+
+            _logger = logger;
         }
 
 
@@ -254,7 +264,7 @@ namespace QuartzRedisJobStore.JobStore
         ///             misfire instruction will be applied.
         /// </para>
         /// </summary>
-        public abstract global::Quartz.Collection.ISet<string> ResumeJobs(GroupMatcher<JobKey> matcher);
+        public abstract ISet<string> ResumeJobs(GroupMatcher<JobKey> matcher);
 
 
         /// <summary>
@@ -412,7 +422,7 @@ namespace QuartzRedisJobStore.JobStore
                 return RetrieveTrigger(triggerKey, ConvertToDictionaryString(properties));
             }
 
-            _logger.WarnFormat("trigger does not exist - {0}", triggerHashKey);
+            _logger.LogWarning("trigger does not exist - {0}", triggerHashKey);
             return null;
 
         }
@@ -453,7 +463,7 @@ namespace QuartzRedisJobStore.JobStore
 
             do
             {
-                var acquiredJobHashKeysForNoConcurrentExec = new global::Quartz.Collection.HashSet<string>();
+                var acquiredJobHashKeysForNoConcurrentExec = new HashSet<string>();
 
                 var score = ToUnixTimeMilliseconds(noLaterThan.Add(timeWindow));
 
@@ -576,7 +586,7 @@ namespace QuartzRedisJobStore.JobStore
                 var calendarProperties = ConvertToDictionaryString(calendarPropertiesInRedis);
 
                 calendar =
-                    JsonConvert.DeserializeObject(calendarProperties[RedisJobStoreSchema.CalendarSerialized],
+                    JsonSerializer.Deserialize<Calendar>(calendarProperties[RedisJobStoreSchema.CalendarSerialized],
                                                   _serializerSettings) as ICalendar;
             }
 
@@ -602,12 +612,12 @@ namespace QuartzRedisJobStore.JobStore
         /// Gets the paused trigger groups.
         /// </summary>
         /// <returns/>
-        public global::Quartz.Collection.ISet<string> GetPausedTriggerGroups()
+        public ISet<string> GetPausedTriggerGroups()
         {
             RedisValue[] triggerGroupSetKeys =
                 Db.SetMembers(RedisJobStoreSchema.PausedTriggerGroupsSetKey());
 
-            var groups = new global::Quartz.Collection.HashSet<string>();
+            var groups = new HashSet<string>();
 
             foreach (var triggerGroupSetKey in triggerGroupSetKeys)
             {
@@ -683,7 +693,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         /// <param name="matcher"/>
         /// <returns/>
-        public abstract global::Quartz.Collection.ISet<JobKey> JobKeys(GroupMatcher<JobKey> matcher);
+        public abstract ISet<JobKey> JobKeys(GroupMatcher<JobKey> matcher);
 
         /// <summary>
         /// Get the names of all of the <see cref="T:Quartz.ITrigger"/>s
@@ -693,7 +703,7 @@ namespace QuartzRedisJobStore.JobStore
         ///             zero-length array (not <see langword="null"/>).
         /// </para>
         /// </summary>
-        public abstract global::Quartz.Collection.ISet<TriggerKey> TriggerKeys(GroupMatcher<TriggerKey> matcher);
+        public abstract ISet<TriggerKey> TriggerKeys(GroupMatcher<TriggerKey> matcher);
 
         /// <summary>
         /// Get the names of all of the <see cref="T:Quartz.IJob"/>
@@ -1016,7 +1026,7 @@ namespace QuartzRedisJobStore.JobStore
         {
             var entries = new List<HashEntry>
                 {
-                    new HashEntry(RedisJobStoreSchema.CalendarSerialized, JsonConvert.SerializeObject(calendar,_serializerSettings))
+                    new HashEntry(RedisJobStoreSchema.CalendarSerialized, JsonSerializer.Serialize(calendar,_serializerSettings))
                 };
 
             return entries.ToArray();
@@ -1191,12 +1201,12 @@ namespace QuartzRedisJobStore.JobStore
             {
                 try
                 {
-                    _logger.Info("waiting for redis lock");
+                    _logger.LogInformation("waiting for redis lock");
                     Thread.Sleep(RandomInt(75, 125));
                 }
                 catch (ThreadInterruptedException ex)
                 {
-                    _logger.ErrorFormat("errored out on waiting for a lock", ex);
+                    _logger.LogError("errored out on waiting for a lock", ex);
                 }
             }
 
@@ -1227,7 +1237,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <summary>
         /// return the logger for the current class
         /// </summary>
-        protected ILog Logger
+        protected ILogger Logger
         {
             get { return _logger; }
         }

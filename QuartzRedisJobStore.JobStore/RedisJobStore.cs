@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
 using Quartz;
 using Quartz.Impl.Matchers;
 using Quartz.Spi;
 using StackExchange.Redis;
-using log4net;
 
 namespace QuartzRedisJobStore.JobStore
 {
@@ -13,12 +13,16 @@ namespace QuartzRedisJobStore.JobStore
     /// </summary>
     public class RedisJobStore : IJobStore
     {
+        public RedisJobStore(ILogger<RedisJobStore> logger) {
+            _logger = logger;
+        }
+
 
         #region private fields
         /// <summary>
         /// logger
         /// </summary>
-        private readonly ILog _logger = LogManager.GetLogger(typeof(RedisJobStore));
+        private readonly ILogger _logger;
         /// <summary>
         /// redis job store schema
         /// </summary>
@@ -121,7 +125,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         public void SchedulerStarted()
         {
-            _logger.Info("scheduler has started");
+            _logger.LogInformation("scheduler has started");
         }
 
         /// <summary>
@@ -130,7 +134,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         public void SchedulerPaused()
         {
-            _logger.Info("scheduler has paused");
+            _logger.LogInformation("scheduler has paused");
         }
 
         /// <summary>
@@ -139,7 +143,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         public void SchedulerResumed()
         {
-            _logger.Info("scheduler has resumed");
+            _logger.LogInformation("scheduler has resumed");
         }
 
         /// <summary>
@@ -149,7 +153,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         public void Shutdown()
         {
-            _logger.Info("scheduler has shutdown");
+            _logger.LogInformation("scheduler has shutdown");
             _db.Multiplexer.Dispose();
         }
 
@@ -159,7 +163,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <param name="newJob">The <see cref="T:Quartz.IJobDetail"/> to be stored.</param><param name="newTrigger">The <see cref="T:Quartz.ITrigger"/> to be stored.</param><throws>ObjectAlreadyExistsException </throws>
         public void StoreJobAndTrigger(IJobDetail newJob, IOperableTrigger newTrigger)
         {
-            _logger.Info("StoreJobAndTrigger");
+            _logger.LogInformation("StoreJobAndTrigger");
             DoWithLock(() =>
             {
                 _storage.StoreJob(newJob, false);
@@ -175,7 +179,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <returns/>
         public bool IsJobGroupPaused(string groupName)
         {
-            _logger.Info("IsJobGroupPaused");
+            _logger.LogInformation("IsJobGroupPaused");
             return DoWithLock(() => _storage.IsJobGroupPaused(groupName),
                               string.Format("Error on IsJobGroupPaused - Group {0}", groupName));
         }
@@ -188,7 +192,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <returns/>
         public bool IsTriggerGroupPaused(string groupName)
         {
-            _logger.Info("IsTriggerGroupPaused");
+            _logger.LogInformation("IsTriggerGroupPaused");
             return DoWithLock(() => _storage.IsTriggerGroupPaused(groupName),
                               string.Format("Error on IsTriggerGroupPaused - Group {0}", groupName));
         }
@@ -202,7 +206,7 @@ namespace QuartzRedisJobStore.JobStore
         ///             </param>
         public void StoreJob(IJobDetail newJob, bool replaceExisting)
         {
-            _logger.Info("StoreJob");
+            _logger.LogInformation("StoreJob");
             DoWithLock(() => _storage.StoreJob(newJob, replaceExisting), "Could not store job");
         }
 
@@ -211,9 +215,9 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         /// <param name="triggersAndJobs">jobs and triggers indexed by job</param>
         /// <param name="replace">indicate to repalce the existing ones or not</param>
-        public void StoreJobsAndTriggers(IDictionary<IJobDetail, global::Quartz.Collection.ISet<ITrigger>> triggersAndJobs, bool replace)
+        public void StoreJobsAndTriggers(IDictionary<IJobDetail, ISet<ITrigger>> triggersAndJobs, bool replace)
         {
-            _logger.Info("StoreJobsAndTriggers");
+            _logger.LogInformation("StoreJobsAndTriggers");
             foreach (var job in triggersAndJobs)
             {
                 DoWithLock(() =>
@@ -245,7 +249,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </returns>
         public bool RemoveJob(JobKey jobKey)
         {
-            _logger.Info("RemoveJob");
+            _logger.LogInformation("RemoveJob");
             return DoWithLock(() => _storage.RemoveJob(jobKey),
                               "Could not remove a job");
         }
@@ -257,7 +261,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <returns>succeeds or not</returns>
         public bool RemoveJobs(IList<JobKey> jobKeys)
         {
-            _logger.Info("RemoveJobs");
+            _logger.LogInformation("RemoveJobs");
             bool removed = jobKeys.Count > 0;
 
             foreach (var jobKey in jobKeys)
@@ -280,7 +284,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </returns>
         public IJobDetail RetrieveJob(JobKey jobKey)
         {
-            _logger.Info("RetrieveJob");
+            _logger.LogInformation("RetrieveJob");
             return DoWithLock(() => _storage.RetrieveJob(jobKey),
                               "Could not retriev job");
         }
@@ -293,7 +297,7 @@ namespace QuartzRedisJobStore.JobStore
         ///             be over-written.</param><throws>ObjectAlreadyExistsException </throws>
         public void StoreTrigger(IOperableTrigger newTrigger, bool replaceExisting)
         {
-            _logger.Info("StoreTrigger");
+            _logger.LogInformation("StoreTrigger");
             DoWithLock(() => _storage.StoreTrigger(newTrigger, replaceExisting),
                             "Could not store trigger");
         }
@@ -319,7 +323,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </returns>
         public bool RemoveTrigger(TriggerKey triggerKey)
         {
-            _logger.Info("RemoveTrigger");
+            _logger.LogInformation("RemoveTrigger");
             return DoWithLock(() => _storage.RemoveTrigger(triggerKey),
                               "Could not remove trigger");
         }
@@ -331,7 +335,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <returns>succeeds or not</returns>
         public bool RemoveTriggers(IList<TriggerKey> triggerKeys)
         {
-            _logger.Info("RemoveTriggers");
+            _logger.LogInformation("RemoveTriggers");
 
             bool removed = triggerKeys.Count > 0;
 
@@ -358,7 +362,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </returns>
         public bool ReplaceTrigger(TriggerKey triggerKey, IOperableTrigger newTrigger)
         {
-            _logger.Info("ReplaceTrigger");
+            _logger.LogInformation("ReplaceTrigger");
 
             return DoWithLock(() => _storage.ReplaceTrigger(triggerKey, newTrigger),
                               "Error on replacing trigger");
@@ -373,7 +377,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </returns>
         public IOperableTrigger RetrieveTrigger(TriggerKey triggerKey)
         {
-            _logger.Info("RetrieveTrigger");
+            _logger.LogInformation("RetrieveTrigger");
 
             return DoWithLock(() => _storage.RetrieveTrigger(triggerKey),
                               "could not retrieve trigger");
@@ -390,7 +394,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </returns>
         public bool CalendarExists(string calName)
         {
-            _logger.Info("CalendarExists");
+            _logger.LogInformation("CalendarExists");
 
             return DoWithLock(() => _storage.CheckExists(calName),
                              string.Format("could not check if the calendar {0} exists", calName));
@@ -407,7 +411,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </returns>
         public bool CheckExists(JobKey jobKey)
         {
-            _logger.Info("CheckExists - Job");
+            _logger.LogInformation("CheckExists - Job");
             return DoWithLock(() => _storage.CheckExists(jobKey),
                               string.Format("could not check if the job {0} exists", jobKey));
         }
@@ -423,7 +427,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </returns>
         public bool CheckExists(TriggerKey triggerKey)
         {
-            _logger.Info("CheckExists - Trigger");
+            _logger.LogInformation("CheckExists - Trigger");
             return DoWithLock(() => _storage.CheckExists(triggerKey),
                             string.Format("could not check if the trigger {0} exists", triggerKey));
         }
@@ -435,7 +439,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <remarks/>
         public void ClearAllSchedulingData()
         {
-            _logger.Info("ClearAllSchedulingData");
+            _logger.LogInformation("ClearAllSchedulingData");
             DoWithLock(() => _storage.ClearAllSchedulingData(), "Could not clear all the scheduling data");
         }
 
@@ -450,7 +454,7 @@ namespace QuartzRedisJobStore.JobStore
         ///             re-computed with the new <see cref="T:Quartz.ICalendar"/>.</param><throws>ObjectAlreadyExistsException </throws>
         public void StoreCalendar(string name, ICalendar calendar, bool replaceExisting, bool updateTriggers)
         {
-            _logger.Info("StoreCalendar");
+            _logger.LogInformation("StoreCalendar");
             DoWithLock(() => _storage.StoreCalendar(name, calendar, replaceExisting, updateTriggers),
                        string.Format("Error on store calendar - {0}", name));
         }
@@ -471,7 +475,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </returns>
         public bool RemoveCalendar(string calName)
         {
-            _logger.Info("RemoveCalendar");
+            _logger.LogInformation("RemoveCalendar");
             return DoWithLock(() => _storage.RemoveCalendar(calName),
                        string.Format("Error on remvoing calendar - {0}", calName));
         }
@@ -486,7 +490,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </returns>
         public ICalendar RetrieveCalendar(string calName)
         {
-            _logger.Info("RetrieveCalendar");
+            _logger.LogInformation("RetrieveCalendar");
             return DoWithLock(() => _storage.RetrieveCalendar(calName),
                               string.Format("Error on retrieving calendar - {0}", calName));
         }
@@ -498,7 +502,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <returns/>
         public int GetNumberOfJobs()
         {
-            _logger.Info("GetNumberOfJobs");
+            _logger.LogInformation("GetNumberOfJobs");
             return DoWithLock(() => _storage.NumberOfJobs(), "Error on getting Number of jobs");
         }
 
@@ -509,7 +513,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <returns/>
         public int GetNumberOfTriggers()
         {
-            _logger.Info("GetNumberOfTriggers");
+            _logger.LogInformation("GetNumberOfTriggers");
             return DoWithLock(() => _storage.NumberOfTriggers(), "Error on getting number of triggers");
         }
 
@@ -520,7 +524,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <returns/>
         public int GetNumberOfCalendars()
         {
-            _logger.Info("GetNumberOfCalendars");
+            _logger.LogInformation("GetNumberOfCalendars");
             return DoWithLock(() => _storage.NumberOfCalendars(), "Error on getting number of calendars");
         }
 
@@ -534,9 +538,9 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         /// <param name="matcher"/>
         /// <returns/>
-        public global::Quartz.Collection.ISet<JobKey> GetJobKeys(GroupMatcher<JobKey> matcher)
+        public ISet<JobKey> GetJobKeys(GroupMatcher<JobKey> matcher)
         {
-            _logger.Info("GetJobKeys");
+            _logger.LogInformation("GetJobKeys");
             return DoWithLock(() => _storage.JobKeys(matcher), "Error on getting job keys");
         }
 
@@ -548,9 +552,9 @@ namespace QuartzRedisJobStore.JobStore
         ///             zero-length array (not <see langword="null"/>).
         /// </para>
         /// </summary>
-        public global::Quartz.Collection.ISet<TriggerKey> GetTriggerKeys(GroupMatcher<TriggerKey> matcher)
+        public ISet<TriggerKey> GetTriggerKeys(GroupMatcher<TriggerKey> matcher)
         {
-            _logger.Info("GetTriggerKeys");
+            _logger.LogInformation("GetTriggerKeys");
             return DoWithLock(() => _storage.TriggerKeys(matcher), "Error on getting trigger keys");
         }
 
@@ -564,7 +568,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         public IList<string> GetJobGroupNames()
         {
-            _logger.Info("GetJobGroupNames");
+            _logger.LogInformation("GetJobGroupNames");
             return DoWithLock(() => _storage.JobGroupNames(), "Error on getting job group names");
         }
 
@@ -578,7 +582,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         public IList<string> GetTriggerGroupNames()
         {
-            _logger.Info("GetTriggerGroupNames");
+            _logger.LogInformation("GetTriggerGroupNames");
             return DoWithLock(() => _storage.TriggerGroupNames(), "Error on getting trigger group names");
         }
 
@@ -592,7 +596,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         public IList<string> GetCalendarNames()
         {
-            _logger.Info("GetCalendarNames");
+            _logger.LogInformation("GetCalendarNames");
             return DoWithLock(() => _storage.CalendarNames(), "Error on getting calendar names");
         }
 
@@ -604,7 +608,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </remarks>
         public IList<IOperableTrigger> GetTriggersForJob(JobKey jobKey)
         {
-            _logger.Info("GetTriggersForJob");
+            _logger.LogInformation("GetTriggersForJob");
             return DoWithLock(() => _storage.GetTriggersForJob(jobKey), string.Format("Error on getting triggers for job - {0}", jobKey));
         }
 
@@ -614,7 +618,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <seealso cref="T:Quartz.TriggerState"/>
         public TriggerState GetTriggerState(TriggerKey triggerKey)
         {
-            _logger.Info("GetTriggerState");
+            _logger.LogInformation("GetTriggerState");
             return DoWithLock(() => _storage.GetTriggerState(triggerKey),
                               string.Format("Error on getting trigger state for trigger - {0}", triggerKey));
         }
@@ -624,7 +628,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         public void PauseTrigger(TriggerKey triggerKey)
         {
-            _logger.Info("PauseTrigger");
+            _logger.LogInformation("PauseTrigger");
             DoWithLock(() => _storage.PauseTrigger(triggerKey),
                               string.Format("Error on pausing trigger - {0}", triggerKey));
         }
@@ -638,10 +642,10 @@ namespace QuartzRedisJobStore.JobStore
         ///             pause on any new triggers that are added to the group while the group is
         ///             paused.
         /// </remarks>
-        public global::Quartz.Collection.ISet<string> PauseTriggers(GroupMatcher<TriggerKey> matcher)
+        public ISet<string> PauseTriggers(GroupMatcher<TriggerKey> matcher)
         {
-            _logger.Info("PauseTriggers");
-            return DoWithLock(() => new global::Quartz.Collection.HashSet<string>(_storage.PauseTriggers(matcher)), "Error on pausing triggers");
+            _logger.LogInformation("PauseTriggers");
+            return DoWithLock(() => new HashSet<string>(_storage.PauseTriggers(matcher)), "Error on pausing triggers");
         }
 
         /// <summary>
@@ -650,7 +654,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         public void PauseJob(JobKey jobKey)
         {
-            _logger.Info("PauseJob");
+            _logger.LogInformation("PauseJob");
             DoWithLock(() => _storage.PauseJob(jobKey), string.Format("Error on pausing job - {0}", jobKey));
         }
 
@@ -666,7 +670,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <seealso cref="T:System.String"/>
         public IList<string> PauseJobs(GroupMatcher<JobKey> matcher)
         {
-            _logger.Info("PauseJobs");
+            _logger.LogInformation("PauseJobs");
             return DoWithLock(() => _storage.PauseJobs(matcher), "Error on pausing jobs");
         }
 
@@ -681,7 +685,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <seealso cref="T:System.String"/>
         public void ResumeTrigger(TriggerKey triggerKey)
         {
-            _logger.Info("ResumeTrigger");
+            _logger.LogInformation("ResumeTrigger");
             DoWithLock(() => _storage.ResumeTrigger(triggerKey),
                        string.Format("Error on resuming trigger - {0}", triggerKey));
         }
@@ -696,7 +700,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         public IList<string> ResumeTriggers(GroupMatcher<TriggerKey> matcher)
         {
-            _logger.Info("ResumeTriggers");
+            _logger.LogInformation("ResumeTriggers");
             return DoWithLock(() => _storage.ResumeTriggers(matcher), "Error on resume triggers");
         }
 
@@ -704,9 +708,9 @@ namespace QuartzRedisJobStore.JobStore
         /// Gets the paused trigger groups.
         /// </summary>
         /// <returns/>
-        public global::Quartz.Collection.ISet<string> GetPausedTriggerGroups()
+        public ISet<string> GetPausedTriggerGroups()
         {
-            _logger.Info("GetPausedTriggerGroups");
+            _logger.LogInformation("GetPausedTriggerGroups");
             return DoWithLock(() => _storage.GetPausedTriggerGroups(), "Error on getting paused trigger groups");
         }
 
@@ -721,7 +725,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         public void ResumeJob(JobKey jobKey)
         {
-            _logger.Info("ResumeJob");
+            _logger.LogInformation("ResumeJob");
             DoWithLock(() => _storage.ResumeJob(jobKey), string.Format("Error on resuming job - {0}", jobKey));
         }
 
@@ -734,9 +738,9 @@ namespace QuartzRedisJobStore.JobStore
         ///             misfire instruction will be applied.
         /// </para>
         /// </summary>
-        public global::Quartz.Collection.ISet<string> ResumeJobs(GroupMatcher<JobKey> matcher)
+        public ISet<string> ResumeJobs(GroupMatcher<JobKey> matcher)
         {
-            _logger.Info("ResumeJobs");
+            _logger.LogInformation("ResumeJobs");
             return DoWithLock(() => _storage.ResumeJobs(matcher), "Error on resuming jobs");
         }
 
@@ -751,7 +755,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <seealso cref="M:Quartz.Spi.IJobStore.ResumeAll"/>
         public void PauseAll()
         {
-            _logger.Info("PauseAll");
+            _logger.LogInformation("PauseAll");
             DoWithLock(() => _storage.PauseAllTriggers(), "Error on pausing all");
         }
 
@@ -766,7 +770,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <seealso cref="M:Quartz.Spi.IJobStore.PauseAll"/>
         public void ResumeAll()
         {
-            _logger.Info("ResumeAll");
+            _logger.LogInformation("ResumeAll");
             DoWithLock(() => _storage.ResumeAllTriggers(), "Error on resuming all");
         }
 
@@ -781,7 +785,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <seealso cref="T:Quartz.ITrigger"/>
         public IList<IOperableTrigger> AcquireNextTriggers(DateTimeOffset noLaterThan, int maxCount, TimeSpan timeWindow)
         {
-            _logger.Info("AcquireNextTriggers");
+            _logger.LogInformation("AcquireNextTriggers");
             return DoWithLock(() => _storage.AcquireNextTriggers(noLaterThan, maxCount, timeWindow),
                               "Error on acquiring next triggers");
         }
@@ -793,7 +797,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         public void ReleaseAcquiredTrigger(IOperableTrigger trigger)
         {
-            _logger.Info("ReleaseAcquiredTrigger");
+            _logger.LogInformation("ReleaseAcquiredTrigger");
             DoWithLock(() => _storage.ReleaseAcquiredTrigger(trigger), string.Format("Error on releasing acquired trigger - {0}", trigger));
         }
 
@@ -810,7 +814,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </returns>
         public IList<TriggerFiredResult> TriggersFired(IList<IOperableTrigger> triggers)
         {
-            _logger.Info("TriggersFired");
+            _logger.LogInformation("TriggersFired");
             return DoWithLock(() => _storage.TriggersFired(triggers), "Error on Triggers Fired");
         }
 
@@ -823,7 +827,7 @@ namespace QuartzRedisJobStore.JobStore
         /// </summary>
         public void TriggeredJobComplete(IOperableTrigger trigger, IJobDetail jobDetail, SchedulerInstruction triggerInstCode)
         {
-            _logger.Info("TriggeredJobComplete");
+            _logger.LogInformation("TriggeredJobComplete");
             DoWithLock(() => _storage.TriggeredJobComplete(trigger, jobDetail, triggerInstCode),
                        string.Format("Error on triggered job complete - job:{0} - trigger:{1}", jobDetail, trigger));
         }
@@ -876,7 +880,7 @@ namespace QuartzRedisJobStore.JobStore
             }
             catch (ObjectAlreadyExistsException ex)
             {
-                _logger.Error("key exists", ex);
+                _logger.LogError("key exists", ex);
             }
             catch (Exception ex)
             {
