@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Quartz;
 using Quartz.Impl.Matchers;
@@ -15,16 +17,43 @@ namespace QuartzRedisJobStore.JobStore
     /// </summary>
     public class RedisJobStore : IJobStore
     {
-        public RedisJobStore(ILogger logger) {
+        public RedisJobStore(ILogger<RedisJobStore> logger, IConfiguration config)
+        {
             _logger = logger;
+
+            var redisConfigSection = config.GetRequiredSection("Redis");
+
+            var redisSentinelConfig = new ConfigurationOptions
+            {
+                CommandMap = CommandMap.Sentinel,
+                Password = redisConfigSection["Password"]                
+            };
+            foreach (var item in redisConfigSection.GetSection("Endpoints").AsEnumerable().Skip(1))
+            {
+                redisSentinelConfig.EndPoints.Add(item.Value);
+            }
+
+            var redisMasterConfig = new ConfigurationOptions
+            {
+                CommandMap = CommandMap.Default,
+                Password = redisConfigSection["Password"],
+                ServiceName = "redismaster",
+                DefaultDatabase = int.TryParse(redisConfigSection["DefaultDatabase"], out var defaultDb) ? defaultDb : 0
+            };
+
+            _redisSentinelConfiguration = redisSentinelConfig;
+            _redisMasterConfiguration = redisMasterConfig;
         }
 
 
         #region private fields
-        /// <summary>
-        /// logger
-        /// </summary>
+
         private readonly ILogger _logger;
+        private readonly ConfigurationOptions _redisMasterConfiguration;
+        private readonly ConfigurationOptions _redisSentinelConfiguration;
+
+
+        private ConnectionMultiplexer _redisSentinelConnection;
 
         /// <summary>
         /// redis job store schema
@@ -34,9 +63,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <summary>
         /// redis db.
         /// </summary>
-        private IDatabase Db => _sentinelConnection.GetSentinelMasterConnection(RedisMasterConfiguration).GetDatabase();
-
-        private ConnectionMultiplexer _sentinelConnection;
+        private IDatabase Db => _redisSentinelConnection.GetSentinelMasterConnection(_redisMasterConfiguration).GetDatabase();
 
         /// <summary>
         /// master/slave redis store.
@@ -67,10 +94,7 @@ namespace QuartzRedisJobStore.JobStore
         /// Whether or not the <see cref="T:Quartz.Spi.IJobStore"/> implementation is clustered.
         /// </summary>
         /// <returns/>
-        public bool Clustered
-        {
-            get { return true; }
-        }
+        public bool Clustered { get; set; }
         /// <summary>
         /// Inform the <see cref="T:Quartz.Spi.IJobStore"/> of the Scheduler instance's Id, 
         ///             prior to initialize being invoked.
@@ -89,12 +113,12 @@ namespace QuartzRedisJobStore.JobStore
         /// <summary>
         /// Redis master configuration
         /// </summary>
-        public ConfigurationOptions RedisMasterConfiguration { set; get; }
+        public string RedisMasterConfiguration { set; get; }
 
         /// <summary>
         /// Redis sentinel configuration
         /// </summary>
-        public ConfigurationOptions RedisSentinelConfiguration { set; get; }
+        public string RedisSentinelConfiguration { set; get; }
 
         /// <summary>
         /// gets / sets the delimiter for concatinate redis keys.
@@ -125,29 +149,23 @@ namespace QuartzRedisJobStore.JobStore
         /// here we default triggerLockTime out to 5 mins (number in miliseconds)
         /// default redisLockTimeout to 5 secs (number in miliseconds)
         /// </summary>
-        public Task Initialize(ITypeLoadHelper loadHelper, ISchedulerSignaler signaler, CancellationToken cancellationToken = default)
+        public async Task Initialize(ITypeLoadHelper loadHelper, ISchedulerSignaler signaler, CancellationToken cancellationToken = default)
         {
-            if (RedisSentinelConfiguration == null)
-            {
-                throw new Exception($"{nameof(RedisSentinelConfiguration)} can not be null");
-            }
-            else if (RedisMasterConfiguration == null)
-            {
-                throw new Exception($"{nameof(RedisMasterConfiguration)} can not be null");
-            }
+            _redisSentinelConnection = await ConnectionMultiplexer.ConnectAsync(_redisSentinelConfiguration);
 
-            _sentinelConnection = ConnectionMultiplexer.SentinelConnect(RedisSentinelConfiguration);
-
-            _storeSchema = new RedisJobStoreSchema(KeyPrefix ?? string.Empty, KeyDelimiter ?? ":");            
+            _storeSchema = new RedisJobStoreSchema(KeyPrefix ?? string.Empty, KeyDelimiter ?? ":");
             _storage = new RedisStorage(_storeSchema,
                                         Db,
                                         signaler,
                                         InstanceId,
                                         TriggerLockTimeout ?? 300000,
                                         RedisLockTimeout ?? 5000,
-                                        _logger);
+                                        _logger);            
+        }
 
-            return Task.CompletedTask;
+        protected virtual ValueTask<bool> RecoverJobs(CancellationToken cancellationToken)
+        {
+            throw NotImplementedException();
         }
 
         /// <summary>
@@ -217,7 +235,7 @@ namespace QuartzRedisJobStore.JobStore
         public Task<bool> IsJobGroupPaused(string groupName, CancellationToken cancellationToken = default)
         {
             _logger.LogInformation("IsJobGroupPaused");
-            return Task.FromResult( DoWithLock(() => _storage.IsJobGroupPaused(groupName),
+            return Task.FromResult(DoWithLock(() => _storage.IsJobGroupPaused(groupName),
                               string.Format("Error on IsJobGroupPaused - Group {0}", groupName)));
         }
 
@@ -230,7 +248,7 @@ namespace QuartzRedisJobStore.JobStore
         public Task<bool> IsTriggerGroupPaused(string groupName, CancellationToken cancellationToken = default)
         {
             _logger.LogInformation("IsTriggerGroupPaused");
-            return Task.FromResult( DoWithLock(() => _storage.IsTriggerGroupPaused(groupName),
+            return Task.FromResult(DoWithLock(() => _storage.IsTriggerGroupPaused(groupName),
                               string.Format("Error on IsTriggerGroupPaused - Group {0}", groupName)));
         }
 

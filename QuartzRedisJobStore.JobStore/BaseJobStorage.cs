@@ -892,7 +892,7 @@ namespace QuartzRedisJobStore.JobStore
             {
                 return 0;
             }
-            return double.Parse(lastReleaseTime);
+            return JsonSerializer.Deserialize<double>(lastReleaseTime, _serializerSettings);
         }
 
         /// <summary>
