@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Quartz;
 using Quartz.Impl.Matchers;
 using Quartz.Spi;
@@ -17,7 +18,7 @@ namespace QuartzRedisJobStore.JobStore
     /// </summary>
     public class RedisJobStore : IJobStore
     {
-        public RedisJobStore(ILogger<RedisJobStore> logger, IConfiguration config)
+        public RedisJobStore(ILogger<RedisJobStore> logger, IConfiguration config, IOptions<RedisJobStoreOptions> options)
         {
             _logger = logger;
 
@@ -43,12 +44,14 @@ namespace QuartzRedisJobStore.JobStore
 
             _redisSentinelConfiguration = redisSentinelConfig;
             _redisMasterConfiguration = redisMasterConfig;
+            _options = options;
         }
 
 
         #region private fields
 
         private readonly ILogger _logger;
+        private readonly IOptions<RedisJobStoreOptions> _options;
         private readonly ConfigurationOptions _redisMasterConfiguration;
         private readonly ConfigurationOptions _redisSentinelConfiguration;
 
@@ -160,7 +163,8 @@ namespace QuartzRedisJobStore.JobStore
                                         InstanceId,
                                         TriggerLockTimeout ?? 300000,
                                         RedisLockTimeout ?? 5000,
-                                        _logger);            
+                                        _logger,
+                                        _options);            
         }
 
         protected virtual ValueTask<bool> RecoverJobs(CancellationToken cancellationToken)

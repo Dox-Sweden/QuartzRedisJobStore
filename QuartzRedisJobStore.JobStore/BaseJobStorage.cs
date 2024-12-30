@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Globalization;
+using Microsoft.Extensions.Options;
 
 namespace QuartzRedisJobStore.JobStore
 {
@@ -24,6 +25,8 @@ namespace QuartzRedisJobStore.JobStore
         /// Logger 
         /// </summary>
         private readonly ILogger _logger;
+
+        private readonly IDictionary<string, Type> _JobClassTypeMap;
 
         /// <summary>
         /// Utc datetime of Epoch.
@@ -92,7 +95,8 @@ namespace QuartzRedisJobStore.JobStore
                                  string schedulerInstanceId,
                                  int triggerLockTimeout,
                                  int redisLockTimeout,
-                                 ILogger logger)
+                                 ILogger logger,
+                                 IOptions<RedisJobStoreOptions> options)
         {
             RedisJobStoreSchema = redisJobStoreSchema;
             Db = db;
@@ -102,6 +106,7 @@ namespace QuartzRedisJobStore.JobStore
             RedisLockTimeout = redisLockTimeout;
 
             _logger = logger;
+            _JobClassTypeMap = options.Value?.JobTypeMap?.ToDictionary(x => x.Key.AssemblyQualifiedName, x => x.Value);
         }
 
 
@@ -138,8 +143,21 @@ namespace QuartzRedisJobStore.JobStore
 
             var jobProperties = ConvertToDictionaryString(jobDetails);
 
+            var jobClassTypeName = jobProperties[RedisJobStoreSchema.JobClass];
+
+            Type jobClass = null;
+
+            if (_JobClassTypeMap?.TryGetValue(jobClassTypeName, out var type) == true)
+            {
+                jobClass = type;
+            }
+            else
+            {
+                jobClass = Type.GetType(jobProperties[RedisJobStoreSchema.JobClass]);
+            }
+
             var jobBuilder =
-                JobBuilder.Create(Type.GetType(jobProperties[RedisJobStoreSchema.JobClass]))
+                JobBuilder.Create(jobClass)
                           .WithIdentity(jobKey)
                           .WithDescription(jobProperties[RedisJobStoreSchema.Description])
                           .RequestRecovery(Convert.ToBoolean(Convert.ToInt16(jobProperties[RedisJobStoreSchema.RequestRecovery])))

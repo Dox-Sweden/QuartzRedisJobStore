@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Quartz;
 using Quartz.Impl.Matchers;
 using Quartz.Spi;
@@ -31,7 +32,9 @@ namespace QuartzRedisJobStore.JobStore
                             string schedulerInstanceId,
                             int triggerLockTimeout,
                             int redisLockTimeout,
-                            ILogger logger) : base(redisJobStoreSchema, db, signaler, schedulerInstanceId, triggerLockTimeout, redisLockTimeout, logger) { }
+                            ILogger logger,
+                            IOptions<RedisJobStoreOptions> options) 
+            : base(redisJobStoreSchema, db, signaler, schedulerInstanceId, triggerLockTimeout, redisLockTimeout, logger, options) { }
 
         #endregion
 
