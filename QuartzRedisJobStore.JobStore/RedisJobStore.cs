@@ -165,7 +165,7 @@ namespace QuartzRedisJobStore.JobStore
 
         protected virtual ValueTask<bool> RecoverJobs(CancellationToken cancellationToken)
         {
-            throw NotImplementedException();
+            throw new NotImplementedException();
         }
 
         /// <summary>
