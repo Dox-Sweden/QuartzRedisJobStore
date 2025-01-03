@@ -910,7 +910,7 @@ namespace QuartzRedisJobStore.JobStore
             {
                 return 0;
             }
-            return JsonSerializer.Deserialize<double>(lastReleaseTime, _serializerSettings);
+            return double.Parse(lastReleaseTime);
         }
 
         /// <summary>
@@ -919,7 +919,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <param name="time">time in milli seconds from epoch time</param>
         protected void SetLastTriggerReleaseTime(double time)
         {
-            Db.StringSet(RedisJobStoreSchema.LastTriggerReleaseTime(), time);
+            Db.StringSet(RedisJobStoreSchema.LastTriggerReleaseTime(), time.ToString());
         }
 
         /// <summary>
