@@ -167,8 +167,15 @@ namespace QuartzRedisJobStore.JobStore
                                         _options);            
         }
 
-        protected virtual ValueTask<bool> RecoverJobs(CancellationToken cancellationToken)
+        protected virtual async ValueTask<bool> RecoverJobs(CancellationToken cancellationToken)
         {
+            var keys = _storage.JobKeys(GroupMatcher<JobKey>.GroupEquals("webhook")); //remove hard code here and add recover option to RedisJobStoreOptions
+
+            foreach (var key in keys)
+            {
+                var job = await RetrieveJob(key, cancellationToken);
+            }
+
             throw new NotImplementedException();
         }
 
@@ -176,10 +183,11 @@ namespace QuartzRedisJobStore.JobStore
         /// Called by the QuartzScheduler to inform the <see cref="T:Quartz.Spi.IJobStore"/> that
         ///             the scheduler has started.
         /// </summary>
-        public Task SchedulerStarted(CancellationToken cancellationToken = default)
+        public async Task SchedulerStarted(CancellationToken cancellationToken = default)
         {
             _logger.LogInformation("scheduler has started");
-            return Task.CompletedTask;
+
+            await RecoverJobs(cancellationToken);
         }
 
         /// <summary>
