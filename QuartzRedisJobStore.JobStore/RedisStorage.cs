@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Quartz;
@@ -565,7 +566,7 @@ namespace QuartzRedisJobStore.JobStore
                 return;
             }
 
-            var nextFireTime = double.Parse(string.IsNullOrEmpty(nextFireTimeResult) ? "-1" : nextFireTimeResult.ToString());
+            var nextFireTime = JsonSerializer.Deserialize<double>(string.IsNullOrEmpty(nextFireTimeResult) ? "-1" : nextFireTimeResult.ToString(), SerializerSettings);
 
             if (blockedScoreResult.HasValue)
             {
@@ -796,7 +797,7 @@ namespace QuartzRedisJobStore.JobStore
                     foreach (var errorTriggerHashKey in this.Db.SetMembersAsync(jobTriggersSetKey).Result)
                     {
                         var nextFireTime = this.Db.HashGetAsync(errorTriggerHashKey.ToString(), RedisJobStoreSchema.NextFireTime).Result;
-                        var score = string.IsNullOrEmpty(nextFireTime) ? 0 : double.Parse(nextFireTime);
+                        var score = string.IsNullOrEmpty(nextFireTime) ? 0 : JsonSerializer.Deserialize<double>(nextFireTime, SerializerSettings);
                         this.SetTriggerState(RedisTriggerState.Error, score, errorTriggerHashKey);
                     }
                     this.SchedulerSignaler.SignalSchedulingChange(null);

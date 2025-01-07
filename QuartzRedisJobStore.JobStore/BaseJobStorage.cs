@@ -76,7 +76,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <summary>
         /// JsonSerializerSettings
         /// </summary>
-        private readonly JsonSerializerOptions _serializerSettings = new JsonSerializerOptions { 
+        protected readonly JsonSerializerOptions SerializerSettings = new JsonSerializerOptions { 
             PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
         };
 
@@ -605,7 +605,7 @@ namespace QuartzRedisJobStore.JobStore
 
                 calendar =
                     JsonSerializer.Deserialize<Calendar>(calendarProperties[RedisJobStoreSchema.CalendarSerialized],
-                                                  _serializerSettings) as ICalendar;
+                                                  SerializerSettings) as ICalendar;
             }
 
             return calendar;
@@ -910,7 +910,7 @@ namespace QuartzRedisJobStore.JobStore
             {
                 return 0;
             }
-            return double.Parse(lastReleaseTime);
+            return JsonSerializer.Deserialize<double>(lastReleaseTime);
         }
 
         /// <summary>
@@ -919,7 +919,7 @@ namespace QuartzRedisJobStore.JobStore
         /// <param name="time">time in milli seconds from epoch time</param>
         protected void SetLastTriggerReleaseTime(double time)
         {
-            Db.StringSet(RedisJobStoreSchema.LastTriggerReleaseTime(), time.ToString());
+            Db.StringSet(RedisJobStoreSchema.LastTriggerReleaseTime(), time);
         }
 
         /// <summary>
@@ -1004,17 +1004,39 @@ namespace QuartzRedisJobStore.JobStore
 
             var entries = new List<HashEntry>
                 {
-                    new HashEntry(RedisJobStoreSchema.JobHash, this.RedisJobStoreSchema.JobHashKey(operableTrigger.JobKey)),
-                    new HashEntry(RedisJobStoreSchema.Description, operableTrigger.Description ?? ""),
-                    new HashEntry(RedisJobStoreSchema.NextFireTime, operableTrigger.GetNextFireTimeUtc().HasValue? operableTrigger.GetNextFireTimeUtc().Value.DateTime.ToUnixTimeMilliSeconds().ToString():""),
-                    new HashEntry(RedisJobStoreSchema.PrevFireTime, operableTrigger.GetPreviousFireTimeUtc().HasValue? operableTrigger.GetPreviousFireTimeUtc().Value.DateTime.ToUnixTimeMilliSeconds().ToString():""),
-                    new HashEntry(RedisJobStoreSchema.Priority, operableTrigger.Priority),
-                    new HashEntry(RedisJobStoreSchema.StartTime,operableTrigger.StartTimeUtc.DateTime.ToUnixTimeMilliSeconds().ToString()),
-                    new HashEntry(RedisJobStoreSchema.EndTime, operableTrigger.EndTimeUtc.HasValue?operableTrigger.EndTimeUtc.Value.DateTime.ToUnixTimeMilliSeconds().ToString():""),
-                    new HashEntry(RedisJobStoreSchema.FinalFireTime,operableTrigger.FinalFireTimeUtc.HasValue?operableTrigger.FinalFireTimeUtc.Value.DateTime.ToUnixTimeMilliSeconds().ToString():""),
-                    new HashEntry(RedisJobStoreSchema.FireInstanceId,operableTrigger.FireInstanceId??string.Empty),
-                    new HashEntry(RedisJobStoreSchema.MisfireInstruction,operableTrigger.MisfireInstruction),
-                    new HashEntry(RedisJobStoreSchema.CalendarName,operableTrigger.CalendarName??string.Empty)
+                    new HashEntry(
+                        RedisJobStoreSchema.JobHash, 
+                        this.RedisJobStoreSchema.JobHashKey(operableTrigger.JobKey)),
+                    new HashEntry(
+                        RedisJobStoreSchema.Description, 
+                        operableTrigger.Description ?? ""),
+                    new HashEntry(
+                        RedisJobStoreSchema.NextFireTime, 
+                        operableTrigger.GetNextFireTimeUtc().HasValue? operableTrigger.GetNextFireTimeUtc().Value.DateTime.ToUnixTimeMilliSeconds():RedisValue.EmptyString),
+                    new HashEntry(
+                        RedisJobStoreSchema.PrevFireTime, 
+                        operableTrigger.GetPreviousFireTimeUtc().HasValue? operableTrigger.GetPreviousFireTimeUtc().Value.DateTime.ToUnixTimeMilliSeconds():RedisValue.EmptyString),
+                    new HashEntry(
+                        RedisJobStoreSchema.Priority, 
+                        operableTrigger.Priority),
+                    new HashEntry(
+                        RedisJobStoreSchema.StartTime,
+                        operableTrigger.StartTimeUtc.DateTime.ToUnixTimeMilliSeconds()),
+                    new HashEntry(
+                        RedisJobStoreSchema.EndTime, 
+                        operableTrigger.EndTimeUtc.HasValue?operableTrigger.EndTimeUtc.Value.DateTime.ToUnixTimeMilliSeconds(): RedisValue.EmptyString),
+                    new HashEntry(
+                        RedisJobStoreSchema.FinalFireTime,
+                        operableTrigger.FinalFireTimeUtc.HasValue?operableTrigger.FinalFireTimeUtc.Value.DateTime.ToUnixTimeMilliSeconds():RedisValue.EmptyString),
+                    new HashEntry(
+                        RedisJobStoreSchema.FireInstanceId,
+                        operableTrigger.FireInstanceId ?? string.Empty),
+                    new HashEntry(
+                        RedisJobStoreSchema.MisfireInstruction,
+                        operableTrigger.MisfireInstruction),
+                    new HashEntry(
+                        RedisJobStoreSchema.CalendarName,
+                        operableTrigger.CalendarName??string.Empty)
                 };
 
             if (operableTrigger is ISimpleTrigger)
@@ -1044,7 +1066,7 @@ namespace QuartzRedisJobStore.JobStore
         {
             var entries = new List<HashEntry>
                 {
-                    new HashEntry(RedisJobStoreSchema.CalendarSerialized, JsonSerializer.Serialize(calendar,_serializerSettings))
+                    new HashEntry(RedisJobStoreSchema.CalendarSerialized, JsonSerializer.Serialize(calendar,SerializerSettings))
                 };
 
             return entries.ToArray();
@@ -1146,12 +1168,12 @@ namespace QuartzRedisJobStore.JobStore
             trigger.Priority = int.Parse(properties[RedisJobStoreSchema.Priority]);
             trigger.MisfireInstruction = int.Parse(properties[RedisJobStoreSchema.MisfireInstruction]);
             trigger.StartTimeUtc = DateTimeFromUnixTimestampMillis(
-                                           double.Parse(properties[RedisJobStoreSchema.StartTime]));
+                                           JsonSerializer.Deserialize<double>(properties[RedisJobStoreSchema.StartTime], SerializerSettings));
 
             trigger.EndTimeUtc = string.IsNullOrEmpty(properties[RedisJobStoreSchema.EndTime])
                                       ? default(DateTimeOffset?)
                                       : DateTimeFromUnixTimestampMillis(
-                                          double.Parse(properties[RedisJobStoreSchema.EndTime]));
+                                          JsonSerializer.Deserialize<double>(properties[RedisJobStoreSchema.EndTime], SerializerSettings));
 
             var baseTrigger = trigger as AbstractTrigger;
 
@@ -1160,12 +1182,12 @@ namespace QuartzRedisJobStore.JobStore
                 trigger.SetNextFireTimeUtc(string.IsNullOrEmpty(properties[RedisJobStoreSchema.NextFireTime])
                                       ? default(DateTimeOffset?)
                                       : DateTimeFromUnixTimestampMillis(
-                                          double.Parse(properties[RedisJobStoreSchema.NextFireTime])));
+                                          JsonSerializer.Deserialize<double>(properties[RedisJobStoreSchema.NextFireTime], SerializerSettings)));
 
                 trigger.SetPreviousFireTimeUtc(string.IsNullOrEmpty(properties[RedisJobStoreSchema.PrevFireTime])
                                       ? default(DateTimeOffset?)
                                       : DateTimeFromUnixTimestampMillis(
-                                          double.Parse(properties[RedisJobStoreSchema.PrevFireTime])));
+                                          JsonSerializer.Deserialize<double>(properties[RedisJobStoreSchema.PrevFireTime], SerializerSettings)));
             }
 
 
