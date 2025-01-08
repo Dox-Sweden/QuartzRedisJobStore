@@ -6,5 +6,6 @@ namespace QuartzRedisJobStore.JobStore
     public class RedisJobStoreOptions
     {
         public IDictionary<Type, Type> JobTypeMap { get; set; }
+        //public string JobGroupRecovery { get; set; }
     }
 }

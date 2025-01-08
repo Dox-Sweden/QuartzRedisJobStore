@@ -146,6 +146,7 @@ namespace QuartzRedisJobStore.JobStore
         #endregion
 
         #region Implementation of IJobStore
+
         /// <summary>
         /// Called by the QuartzScheduler before the <see cref="T:Quartz.Spi.IJobStore"/> is
         ///             used, in order to give the it a chance to Initialize.
@@ -164,19 +165,7 @@ namespace QuartzRedisJobStore.JobStore
                                         TriggerLockTimeout ?? 300000,
                                         RedisLockTimeout ?? 5000,
                                         _logger,
-                                        _options);            
-        }
-
-        protected virtual async ValueTask<bool> RecoverJobs(CancellationToken cancellationToken)
-        {
-            var keys = _storage.JobKeys(GroupMatcher<JobKey>.GroupEquals("webhook")); //remove hard code here and add recover option to RedisJobStoreOptions
-
-            foreach (var key in keys)
-            {
-                var job = await RetrieveJob(key, cancellationToken);
-            }
-
-            throw new NotImplementedException();
+                                        _options);
         }
 
         /// <summary>
@@ -187,7 +176,25 @@ namespace QuartzRedisJobStore.JobStore
         {
             _logger.LogInformation("scheduler has started");
 
-            await RecoverJobs(cancellationToken);
+            //if (!string.IsNullOrEmpty(_options.Value?.JobGroupRecovery))
+            //{
+            //    _logger.LogInformation("job recovery");
+
+            //    var jobKeyMatcher = GroupMatcher<JobKey>.GroupEquals(_options.Value.JobGroupRecovery);
+            //    var jobKeys = await GetJobKeys(jobKeyMatcher, cancellationToken);
+
+            //    foreach (var key in jobKeys)
+            //    {
+            //        var job = await RetrieveJob(key, cancellationToken);
+            //        var jobTriggers = await GetTriggersForJob(key, cancellationToken);
+
+            //        foreach (var trigger in jobTriggers)
+            //        {
+            //            trigger.SetNextFireTimeUtc(DateTime.Now);
+            //            await ReplaceTrigger(trigger.Key, trigger, cancellationToken);
+            //        }
+            //    }
+            //}
         }
 
         /// <summary>
