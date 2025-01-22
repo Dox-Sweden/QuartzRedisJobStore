@@ -106,7 +106,7 @@ namespace QuartzRedisJobStore.JobStore
             RedisLockTimeout = redisLockTimeout;
 
             _logger = logger;
-            _JobClassTypeMap = options.Value?.JobTypeMap?.ToDictionary(x => x.Key.AssemblyQualifiedName, x => x.Value);
+            _JobClassTypeMap = options.Value?.JobTypeMap?.ToDictionary(x => x.Key.FullName, x => x.Value);
         }
 
 
@@ -978,7 +978,7 @@ namespace QuartzRedisJobStore.JobStore
         {
             var entries = new List<HashEntry>
                 {
-                    new HashEntry(RedisJobStoreSchema.JobClass, jobDetail.JobType.AssemblyQualifiedName),
+                    new HashEntry(RedisJobStoreSchema.JobClass, jobDetail.JobType.FullName),
                     new HashEntry(RedisJobStoreSchema.Description, jobDetail.Description ?? ""),
                     new HashEntry(RedisJobStoreSchema.IsDurable, jobDetail.Durable),
                     new HashEntry(RedisJobStoreSchema.RequestRecovery,jobDetail.RequestsRecovery),
